@@ -1,8 +1,8 @@
-# helloworld
+#final_reply_trimmer
 
-AstrBot 插件模板
+最终回复裁剪插件
 
-A template plugin for AstrBot plugin feature
+一个简单的正则插件，作为最后防线，移除 '最终的罗莎回复：' 及其之前的所有内容。
 
 # 支持
 
