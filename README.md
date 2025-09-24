@@ -1,4 +1,4 @@
-#final_reply_trimmer
+# final_reply_trimmer
 
 最终回复裁剪插件
 
