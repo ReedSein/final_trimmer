@@ -10,11 +10,15 @@ import astrbot.api.message_components as Comp
     "final_reply_trimmer",
     "最终回复裁剪插件",
     "一个简单的正则插件，作为最后防线，移除 '最终的罗莎回复：' 及其之前的所有内容。",
-    "1.0.0",
+    "1.0.1", # 版本号微调
 )
 class FinalReplyTrimmer(Star):
+    # --- 修正之处 ---
+    # __init__ 函数现在正确地接收 context 和 config 两个参数
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
+        # --- 修正结束 ---
+
         # 为了效率，预先编译正则表达式
         # 这个正则会匹配 "最终的罗莎回复" + 一个可选的中文或英文冒号 + 任意数量的空格
         self.FINAL_REPLY_PATTERN = re.compile(r"最终的罗莎回复[:：]?\s*", re.IGNORECASE)
@@ -57,6 +61,11 @@ class FinalReplyTrimmer(Star):
                 new_message_chain.append(component)
         
         # 用我们新建的、干净的消息链来更新最终结果
-        result.result_message.clear()
-        result.result_message.extend(new_message_chain)
-        logger.debug(f"[FinalReplyTrimmer] 已触发最终保险丝，成功裁剪 '最终的罗莎回复' 标记。")
+        if new_message_chain: # 确保在裁剪后消息不为空
+            result.result_message.clear()
+            result.result_message.extend(new_message_chain)
+            logger.debug(f"[FinalReplyTrimmer] 已触发最终保险丝，成功裁剪 '最终的罗莎回复' 标记。")
+        else:
+            # 如果裁剪后没有任何内容（例如，回复只包含一个带标记的空文本），则阻止发送
+            event.stop_event()
+            logger.debug(f"[FinalReplyTrimmer] 裁剪后消息为空，已阻止发送。")
