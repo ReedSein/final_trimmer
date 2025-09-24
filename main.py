@@ -10,24 +10,23 @@ import astrbot.api.message_components as Comp
     "final_reply_trimmer",
     "最终回复裁剪插件",
     "一个简单的正则插件，作为最后防线，移除 '最终的罗莎回复：' 及其之前的所有内容。",
-    "1.0.2", # 版本号微调
+    "1.0.3", # 版本号微调
 )
 class FinalReplyTrimmer(Star):
-    # --- 兼容性修正 ---
-    # __init__ 函数现在只接收 context 参数，以兼容较旧版本的 AstrBot
     def __init__(self, context: Context):
         super().__init__(context)
-        # --- 修正结束 ---
-
-        # 为了效率，预先编译正则表达式
         self.FINAL_REPLY_PATTERN = re.compile(r"最终的罗莎回复[:：]?\s*", re.IGNORECASE)
         logger.info("[FinalReplyTrimmer] 最终保险丝插件已加载。")
 
     @filter.on_decorating_result(priority=200)
     async def trim_final_reply(self, event: AstrMessageEvent, *args, **kwargs):
         result = event.get_result()
-        if not result or not result.result_message:
+        
+        # --- 兼容性修正 ---
+        # 在旧版本 AstrBot 中，消息链的属性名为 'chain' 而不是 'result_message'
+        if not result or not result.chain:
             return
+        # --- 修正结束 ---
 
         plain_text = result.get_plain_text()
 
@@ -39,7 +38,9 @@ class FinalReplyTrimmer(Star):
 
         new_message_chain = []
         text_part_updated = False
-        for component in result.result_message:
+        # --- 兼容性修正 ---
+        for component in result.chain: # 使用 result.chain 进行遍历
+        # --- 修正结束 ---
             if isinstance(component, Comp.Text) and not text_part_updated:
                 new_message_chain.append(Comp.Text(text=clean_text))
                 text_part_updated = True
@@ -47,8 +48,10 @@ class FinalReplyTrimmer(Star):
                 new_message_chain.append(component)
         
         if new_message_chain:
-            result.result_message.clear()
-            result.result_message.extend(new_message_chain)
+            # --- 兼容性修正 ---
+            result.chain.clear() # 操作 result.chain
+            result.chain.extend(new_message_chain) # 操作 result.chain
+            # --- 修正结束 ---
             logger.debug(f"[FinalReplyTrimmer] 已触发最终保险丝，成功裁剪 '最终的罗莎回复' 标记。")
         else:
             event.stop_event()
