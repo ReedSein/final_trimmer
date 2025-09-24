@@ -1,5 +1,5 @@
 name: final_reply_trimmer # 这是你的插件的唯一识别名。
 desc: 一个简单的正则插件，作为最后防线，移除 '最终的罗莎回复：' 及其之前的所有内容。 # 插件简短描述
-version: v1.0.1 # 插件版本号。格式：v1.1.1 或者 v1.1
+version: v1.0.2 # 插件版本号。格式：v1.1.1 或者 v1.1
 author: a小皮 # 作者
 repo: https://github.com/ReedSein/final_trimmer # 插件的仓库地址
