@@ -1,24 +1,62 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+import re
+
+# 导入 AstrBot 核心 API
+from astrbot.api import logger, AstrBotConfig
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent, filter
+import astrbot.api.message_components as Comp
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
-    def __init__(self, context: Context):
+@register(
+    "final_reply_trimmer",
+    "最终回复裁剪插件",
+    "一个简单的正则插件，作为最后防线，移除 '最终的罗莎回复：' 及其之前的所有内容。",
+    "1.0.0",
+)
+class FinalReplyTrimmer(Star):
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
+        # 为了效率，预先编译正则表达式
+        # 这个正则会匹配 "最终的罗莎回复" + 一个可选的中文或英文冒号 + 任意数量的空格
+        self.FINAL_REPLY_PATTERN = re.compile(r"最终的罗莎回复[:：]?\s*", re.IGNORECASE)
+        logger.info("[FinalReplyTrimmer] 最终保险丝插件已加载。")
 
-    async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
-    
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+    @filter.on_decorating_result(priority=200)
+    async def trim_final_reply(self, event: AstrMessageEvent, *args, **kwargs):
+        """在消息发送前的最后一刻进行检查和裁剪"""
+        result = event.get_result()
+        # 确保有结果且结果消息不为空
+        if not result or not result.result_message:
+            return
 
-    async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+        # 获取准备发送的纯文本内容
+        plain_text = result.get_plain_text()
+
+        # 检查文本中是否包含我们需要处理的模式
+        if not self.FINAL_REPLY_PATTERN.search(plain_text):
+            return # 如果不包含，就什么都不做，直接返回
+
+        # --- 核心逻辑 ---
+        # 使用 re.split() 来分割字符串。这个方法会返回一个列表。
+        # 例如，"OS...最终回复: ABC" 会被分割成 ["OS...", "ABC"]
+        # 我们只需要取列表的最后一个元素，就是我们想要的干净文本。
+        parts = self.FINAL_REPLY_PATTERN.split(plain_text)
+        clean_text = parts[-1].strip()
+
+        # --- 重建消息链 ---
+        # 为了防止消息中包含图片等非文本组件，我们不能简单地替换整个消息。
+        # 我们需要遍历原始消息链，只替换文本部分。
+        new_message_chain = []
+        text_part_updated = False
+        for component in result.result_message:
+            # 只处理第一个文本组件，并用我们的干净文本替换它
+            if isinstance(component, Comp.Text) and not text_part_updated:
+                new_message_chain.append(Comp.Text(text=clean_text))
+                text_part_updated = True # 标记已替换，后续的文本组件将被丢弃
+            # 如果不是文本组件（例如图片），则原样保留
+            elif not isinstance(component, Comp.Text):
+                new_message_chain.append(component)
+        
+        # 用我们新建的、干净的消息链来更新最终结果
+        result.result_message.clear()
+        result.result_message.extend(new_message_chain)
+        logger.debug(f"[FinalReplyTrimmer] 已触发最终保险丝，成功裁剪 '最终的罗莎回复' 标记。")
